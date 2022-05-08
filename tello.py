@@ -3,79 +3,79 @@ from djitellopy import tello
 import cv2
 import time
  
-me = tello.Tello()
+# me = tello.Tello()
  
-me.connect()
+# me.connect()
  
-print(me.get_battery())
+# print(me.get_battery())
  
-me.streamon()
+# me.streamon()
  
-me.takeoff()
+# me.takeoff()
  
-me.send_rc_control(0, 0, 25, 0)
+# me.send_rc_control(0, 0, 25, 0)
  
-time.sleep(3.2)
-me.send_rc_control(0, 0, 0, 0)
+# time.sleep(3.2)
+# me.send_rc_control(0, 0, 0, 0)
  
-w, h = 360, 240
+# w, h = 360, 240
  
-fbRange = [6200, 6800]
+fbRange = [900, 1100]
  
 pid = [0.4, 0.4, 0]
  
-pError = 0
+# pError = 0
  
-def findFace(img):
+# def findFace(img):
  
-    faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+#     faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
  
-    imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
  
-    faces = faceCascade.detectMultiScale(imgGray, 1.2, 8)
+#     faces = faceCascade.detectMultiScale(imgGray, 1.2, 8)
  
-    myFaceListC = []
+#     myFaceListC = []
  
-    myFaceListArea = []
+#     myFaceListArea = []
  
-    for (x, y, w, h) in faces:
+#     for (x, y, w, h) in faces:
  
-        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+#         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
  
-        cx = x + w // 2
+#         cx = x + w // 2
  
-        cy = y + h // 2
+#         cy = y + h // 2
  
-        area = w * h
+#         area = w * h
  
-        cv2.circle(img, (cx, cy), 5, (0, 255, 0), cv2.FILLED)
+#         cv2.circle(img, (cx, cy), 5, (0, 255, 0), cv2.FILLED)
  
-        myFaceListC.append([cx, cy])
+#         myFaceListC.append([cx, cy])
  
-        myFaceListArea.append(area)
+#         myFaceListArea.append(area)
  
-    if len(myFaceListArea) != 0:
+#     if len(myFaceListArea) != 0:
  
-        i = myFaceListArea.index(max(myFaceListArea))
+#         i = myFaceListArea.index(max(myFaceListArea))
  
-        return img, [myFaceListC[i], myFaceListArea[i]]
+#         return img, [myFaceListC[i], myFaceListArea[i]]
  
-    else:
+#     else:
  
-        return img, [[0, 0], 0]
+#         return img, [[0, 0], 0]
  
-def trackFace( info, w, pid, pError):
+def trackFace( info, w, pid, pError, drone):
  
     area = info[1]
  
-    x, y = info[0]
+    x= info[0][0]
  
     fb = 0
  
     error = x - w // 2
- 
+    print(x , w//2)
     speed = pid[0] * error + pid[1] * (error - pError)
- 
+    
     speed = int(np.clip(speed, -100, 100))
  
     if area > fbRange[0] and area < fbRange[1]:
@@ -98,30 +98,30 @@ def trackFace( info, w, pid, pError):
  
     #print(speed, fb)
  
-    me.send_rc_control(0, fb, 0, speed)
- 
+    drone.send_rc_control(0, fb, 0, speed)
+    
     return error
  
-#cap = cv2.VideoCapture(1)
+# #cap = cv2.VideoCapture(1)
  
-while True:
+# while True:
  
-    #_, img = cap.read()
+#     #_, img = cap.read()
  
-    img = me.get_frame_read().frame
+#     img = me.get_frame_read().frame
  
-    img = cv2.resize(img, (w, h))
+#     img = cv2.resize(img, (w, h))
  
-    img, info = findFace(img)
+#     img, info = findFace(img)
  
-    pError = trackFace(info, w, pid, pError)
+#     pError = trackFace(info, w, pid, pError)
  
-    #print("Center", info[0], "Area", info[1])
+#     #print("Center", info[0], "Area", info[1])
  
-    cv2.imshow("Output", img)
+#     cv2.imshow("Output", img)
  
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+#     if cv2.waitKey(1) & 0xFF == ord('q'):
  
-        me.land()
+#         me.land()
  
-        break
+#         break
