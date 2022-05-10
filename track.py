@@ -6,57 +6,36 @@ from track_utils import *
 
 
 
-def trackFace(cx, w, pid, pError, drone, fbRange, ar):
- 
-        area = ar
-    
-        x= cx
-    
+def trackObject(cx, w, pd, pError, drone, fbRange, ar):
+    area = ar
+    x= cx
+    fb = 0
+    error = x - w // 2
+    speed = pd[0] * error + pd[1] * (error - pError)
+    speed = int(np.clip(speed, -100, 100))
+    if area > fbRange[0] and area < fbRange[1]:
         fb = 0
-    
-        error = x - w // 2
-        print("DEETS : ", x, w//2, error)
-        speed = pid[0] * error + pid[1] * (error - pError)
-        print("speed :", speed)
-        speed = int(np.clip(speed, -100, 100))
-    
-        if area > fbRange[0] and area < fbRange[1]:
-    
-            fb = 0
-    
-        elif area > fbRange[1]:
-    
-            fb = -20
-    
-        elif area < fbRange[0] and area != 0:
-    
-            fb = 20
-    
-        if x == 0:
-    
-            speed = 0
-    
-            error = 0
-    
-        #print(speed, fb)
-    
-        drone.send_rc_control(0, fb, 0, speed)
-        
-        return error
+    elif area > fbRange[1]:
+        fb = -20
+    elif area < fbRange[0] and area != 0:
+        fb = 20
+    if x == 0:
+        speed = 0
+        error = 0
+    drone.send_rc_control(0, fb, 0, speed)
+    return error
+
 def init_drone():
     me = tello.Tello()
- 
     me.connect()
     me.streamon()
     battery = me.get_battery()
     if battery <=30:
-        print("Battery gone broski")
+        print("Battery level too low")
         exit(0)
     me.takeoff()
-    
     me.send_rc_control(0, 0, 25, 0)
-    
-    time.sleep(3.2)
+    time.sleep(6.6)
     me.send_rc_control(0, 0, 0, 0)
 
     return me
@@ -93,6 +72,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print("track")
+    out = cv2.VideoWriter('results_multi.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 10, (960, 720))
     
     device, half, dt, model, save_crop, outputs, deepsort_list, names, seen = init(opt)
     # exit(0)
@@ -102,32 +82,23 @@ if __name__ == '__main__':
  
     fbRange = []
     
-    pid = [0.4, 0.4, 0]
+    pd = [0.4, 0.4, 0]
 
-    # fb = 0
-    # speed = 0
     pError = 0
     t_w, t_h = 360, 240
-    # cap = cv2.VideoCapture(0)
-    drone = init_drone()
+    
     first_flag = 1
+    # Connect to tello, check battery and take off
+    drone = init_drone() 
     with torch.no_grad():
         while(True):
-            # ret, frame = cap.read()
-            
-            # if ret == True:
+
             frame = drone.get_frame_read().frame
             h, w = frame.shape[:2]
-            print(h,w)
             og=frame.copy()
-            # og = cv2.resize(og,(640,480))
-            # frame = cv2.resize(frame,(1280,960))
-            frame, info, label = detect(device, half, dt, model, save_crop, outputs, deepsort_list, names, seen, opt, img = frame)
-            # frame = cv2.resize(frame,(1280,960))
-            # pError, fb, speed = trackFace( info, w, pid, pError, drone)
-            # print(info)
-            # print(info)
-            # exit(0)
+            # Obtain DeepSort detections
+            frame, info, label = detect(device, half, dt, model, save_crop, outputs, deepsort_list, names, seen, opt, img = frame) 
+            
 
             bbox = info[2]
             
@@ -135,8 +106,7 @@ if __name__ == '__main__':
                 # print("bbox : ",bbox)
                 
                 ar=info[1]//100
-                # xmin, xmax = bbox[0]/640, bbox[2]/640
-                # ymin, ymax = bbox[1]/480, bbox[3]/480
+
                 xmin, xmax = bbox[0], bbox[2]
                 ymin, ymax = bbox[1], bbox[3]
                 t_xmin, t_xmax = xmin*t_w, xmax*t_w
@@ -147,13 +117,14 @@ if __name__ == '__main__':
                 t_cx = t_xmin + (t_xmax-t_xmin)/2
                 p1=(int(xmin),int(ymin))
                 p2=(int(xmax),int(ymax))
-                # print([p1, p2])
+
                 cv2.rectangle(og, p1, p2, (0,0,255), 2, cv2.LINE_AA)
                 tf = 1  # font thickness
                 w, h = cv2.getTextSize(label, 0, fontScale=2 / 3, thickness=tf)[0]  # text width, height
                 outside = p1[1] - h - 3 >= 0  # label fits outside box
                 p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
                 cv2.rectangle(og, p1, p2, (0,0,255), -1, cv2.LINE_AA)  # filled
+
                 cv2.putText(og, label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2), 0, 2 / 3, (255, 255, 255),
                             thickness=tf, lineType=cv2.LINE_AA)
                 cv2.circle(og, (int(cx), int(cy)), 4, (0,0,255), -1)
@@ -162,8 +133,10 @@ if __name__ == '__main__':
                     fbRange = [ar-200, ar+200]
                     first_flag=0
                 else:
-                    pError = trackFace(t_cx, t_w, pid, pError, drone, fbRange, ar)
+                    pError = trackFace(t_cx, t_w, pd, pError, drone, fbRange, ar)
             cv2.imshow('Frame',og)
+
+            out.write(og)
             # Press Q on keyboard to  exit
             if cv2.waitKey(25) & 0xFF == ord('q'):
                 drone.streamoff()
