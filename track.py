@@ -1,43 +1,8 @@
 import argparse
-from djitellopy import tello
-from tello import trackFace
+from tello import trackObject, init_drone
 from track_utils import *
 
 
-
-def trackObject(cx, w, pd, pError, drone, fbRange, ar):
-    area = ar
-    x= cx
-    fb = 0
-    error = x - w // 2
-    speed = pd[0] * error + pd[1] * (error - pError)
-    speed = int(np.clip(speed, -100, 100))
-    if area > fbRange[0] and area < fbRange[1]:
-        fb = 0
-    elif area > fbRange[1]:
-        fb = -20
-    elif area < fbRange[0] and area != 0:
-        fb = 20
-    if x == 0:
-        speed = 0
-        error = 0
-    drone.send_rc_control(0, fb, 0, speed)
-    return error
-
-def init_drone():
-    me = tello.Tello()
-    me.connect()
-    me.streamon()
-    battery = me.get_battery()
-    if battery <=30:
-        print("Battery level too low")
-        exit(0)
-    me.takeoff()
-    me.send_rc_control(0, 0, 25, 0)
-    time.sleep(6.6)
-    me.send_rc_control(0, 0, 0, 0)
-
-    return me
 if __name__ == '__main__':
     print("parse")
     parser = argparse.ArgumentParser()
@@ -73,11 +38,7 @@ if __name__ == '__main__':
     out = cv2.VideoWriter('results_multi.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 10, (960, 720))
     
     device, half, dt, model, save_crop, outputs, deepsort_list, names, seen = init(opt)
-    # exit(0)
-    # me = tello.Tello()
-    
-    # w, h = 360, 240
- 
+
     fbRange = []
     
     pd = [0.4, 0.4, 0]
@@ -101,7 +62,6 @@ if __name__ == '__main__':
             bbox = info[2]
             
             if bbox!=0:
-                # print("bbox : ",bbox)
                 
                 ar=info[1]//100
 
@@ -131,7 +91,7 @@ if __name__ == '__main__':
                     fbRange = [ar-200, ar+200]
                     first_flag=0
                 else:
-                    pError = trackFace(t_cx, t_w, pd, pError, drone, fbRange, ar)
+                    pError = trackObject(t_cx, t_w, pd, pError, drone, fbRange, ar)
             cv2.imshow('Frame',og)
 
             out.write(og)
@@ -141,5 +101,4 @@ if __name__ == '__main__':
                 drone.land()
                 break
 
-        # cap.release()
         cv2.destroyAllWindows()
